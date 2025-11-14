@@ -2,6 +2,8 @@
 import 'dart:convert';
 import 'dart:math';
 import 'dart:ui' show FontFeature;
+import 'dart:io'; // Para manejar SocketException (sin conexión)
+
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -32,7 +34,7 @@ const _STEP_RELATED_URL =
     'https://api-ticket-6wly.onrender.com/search-steps-related-on-route';
 const _CONFIRM_ORDER_URL =
     'https://api-ticket-6wly.onrender.com/insert-normalize-process-sale';
-const String _PRINT_URL =+
+const String _PRINT_URL =
     'https://api-ticket-container-711150519387.us-west1.run.app/process-tickets-trail-travel-html';
 const _VALIDATE_CURP_URL = 'https://api-ticket-6wly.onrender.com/validate-curp';
 
@@ -168,8 +170,10 @@ class _SeatSelectionInlineState extends State<SeatSelectionInline> {
     final Color bg = isDark
         ? const Color(0xFF0B6FFF).withOpacity(0.12)
         : const Color(0xFFFFE6EA);
-    final Color fg = isDark ? const Color(0xFFA8D4F3) : const Color(0xFFD50000);
-    final Color br = isDark ? const Color(0xFF0B6FFF) : const Color(0xFFD50000);
+    final Color fg =
+        isDark ? const Color(0xFFA8D4F3) : const Color(0xFFD50000);
+    final Color br =
+        isDark ? const Color(0xFF0B6FFF) : const Color(0xFFD50000);
 
     return ButtonStyle(
       foregroundColor: MaterialStateProperty.resolveWith(
@@ -229,10 +233,10 @@ class _SeatSelectionInlineState extends State<SeatSelectionInline> {
   double _changeValue = 0.0;
 
   List<String> get _passengerTypesI18n => [
-    tr('ptype_minor'),
-    tr('ptype_adult'),
-    tr('ptype_senior'),
-  ];
+        tr('ptype_minor'),
+        tr('ptype_adult'),
+        tr('ptype_senior'),
+      ];
 
   List<_PassengerControllers> _forms = [];
   late final stt.SpeechToText _stt = stt.SpeechToText();
@@ -327,14 +331,12 @@ class _SeatSelectionInlineState extends State<SeatSelectionInline> {
   }
 
   Future<
-    ({
-      String origen,
-      String destino,
-      String terminalOrigen,
-      String terminalDestino,
-    })
-  >
-  _resolveRouteEnds() async {
+      ({
+        String origen,
+        String destino,
+        String terminalOrigen,
+        String terminalDestino,
+      })> _resolveRouteEnds() async {
     String origen = '-', destino = '-', terminalO = '-', terminalD = '-';
     try {
       if ((widget.idRoute ?? '').isNotEmpty) {
@@ -379,99 +381,114 @@ class _SeatSelectionInlineState extends State<SeatSelectionInline> {
     );
   }
 
-List<Map<String, dynamic>> _buildTicketsForPrint({
-  required String metodoPago,
-  required String origen,
-  required String destino,
-  required String terminalOrigen,
-  required String terminalDestino,
-  List<Map<String, dynamic>>? realTickets,
-  List<String>? ticketIdsOrigin,
-  String? fallbackFolio,
-}) {
-  final base = _routePrice ?? 0.0;
+  List<Map<String, dynamic>> _buildTicketsForPrint({
+    required String metodoPago,
+    required String origen,
+    required String destino,
+    required String terminalOrigen,
+    required String terminalDestino,
+    List<Map<String, dynamic>>? realTickets,
+    List<String>? ticketIdsOrigin,
+    String? fallbackFolio,
+  }) {
+    final base = _routePrice ?? 0.0;
 
-  // Compra: fecha y hora
-  final nowStr = '${_fmtDate(_now)} ${_fmtTime(_now)}';
+    // Compra: fecha y hora
+    final nowStr = '${_fmtDate(_now)} ${_fmtTime(_now)}';
 
-  // Viaje: SOLO fecha en formato ISO, hora por separado
-  final salida = widget.travelDate ?? _now;
-  final fechaSalida = _fmtDate(salida);   // <-- 2025-10-17
-  final horaSalida = _fmtTime(salida);    // <-- 10:00 am
-  final servicio = (widget.serviceLabel != null && widget.serviceLabel!.trim().isNotEmpty)
-      ? widget.serviceLabel!.trim()
-      : _serviceLabelFromId(widget.idService);
-  const clase = 'Primera';
+    // Viaje: SOLO fecha en formato ISO, hora por separado
+    final salida = widget.travelDate ?? _now;
+    final fechaSalida = _fmtDate(salida); // <-- 2025-10-17
+    final horaSalida = _fmtTime(salida); // <-- 10:00 am
+    final servicio =
+        (widget.serviceLabel != null && widget.serviceLabel!.trim().isNotEmpty)
+            ? widget.serviceLabel!.trim()
+            : _serviceLabelFromId(widget.idService);
+    const clase = 'Primera';
 
-  final seller = (_name?.trim().isNotEmpty ?? false) ? _name!.trim() : (widget.nameRole ?? '');
+    final seller = (_name?.trim().isNotEmpty ?? false)
+        ? _name!.trim()
+        : (widget.nameRole ?? '');
 
-  final seatIds = _selectedSeatIds.toList()
-    ..sort((a, b) => (_seatNumberFromId(a) ?? 99999).compareTo(_seatNumberFromId(b) ?? 99999));
+    final seatIds = _selectedSeatIds.toList()
+      ..sort((a, b) =>
+          (_seatNumberFromId(a) ?? 99999).compareTo(_seatNumberFromId(b) ?? 99999));
 
-  return List.generate(widget.passengers, (i) {
-    final rt = (realTickets != null && i < realTickets.length) ? realTickets[i] : null;
+    return List.generate(widget.passengers, (i) {
+      final rt = (realTickets != null && i < realTickets.length)
+          ? realTickets[i]
+          : null;
 
-    final idTicket = (ticketIdsOrigin != null &&
-            i < ticketIdsOrigin.length &&
-            (ticketIdsOrigin[i]).toString().isNotEmpty)
-        ? ticketIdsOrigin[i]
-        : (rt?['id_ticket']?.toString() ?? (fallbackFolio ?? ''));
+      final idTicket = (ticketIdsOrigin != null &&
+              i < ticketIdsOrigin.length &&
+              (ticketIdsOrigin[i]).toString().isNotEmpty)
+          ? ticketIdsOrigin[i]
+          : (rt?['id_ticket']?.toString() ?? (fallbackFolio ?? ''));
 
-    final seatFromApi = (rt?['seat'] is num) ? (rt!['seat'] as num).toInt() : int.tryParse('${rt?['seat'] ?? ''}');
-    final seatId = (i < seatIds.length) ? seatIds[i] : null;
-    final seatNumLocal = seatId != null ? _seatNumberFromId(seatId) : null;
-    final asiento = seatFromApi ?? seatNumLocal ?? '-';
+      final seatFromApi =
+          (rt?['seat'] is num) ? (rt!['seat'] as num).toInt() : int.tryParse('${rt?['seat'] ?? ''}');
+      final seatId = (i < seatIds.length) ? seatIds[i] : null;
+      final seatNumLocal = seatId != null ? _seatNumberFromId(seatId) : null;
+      final asiento = seatFromApi ?? seatNumLocal ?? '-';
 
-    final dLocal = _selectedDiscounts[i];
-    final descuentoMontoLocal = (dLocal?['monto_descuento'] is num) ? (dLocal!['monto_descuento'] as num).toDouble() : 0.0;
-    final descuentoNombreLocal = dLocal?['name'];
-    final precioFinalLocal = (dLocal?['precio_final'] is num) ? (dLocal!['precio_final'] as num).toDouble() : base;
+      final dLocal = _selectedDiscounts[i];
+      final descuentoMontoLocal = (dLocal?['monto_descuento'] is num)
+          ? (dLocal!['monto_descuento'] as num).toDouble()
+          : 0.0;
+      final descuentoNombreLocal = dLocal?['name'];
+      final precioFinalLocal = (dLocal?['precio_final'] is num)
+          ? (dLocal!['precio_final'] as num).toDouble()
+          : base;
 
-    final descuentoMontoApi = (rt?['discount'] is num) ? (rt!['discount'] as num).toDouble() : null;
-    final precioApi = (rt?['price'] is num) ? (rt!['price'] as num).toDouble() : null;
-    final descuentoNombreApi = rt?['discount_name'];
+      final descuentoMontoApi = (rt?['discount'] is num)
+          ? (rt!['discount'] as num).toDouble()
+          : null;
+      final precioApi = (rt?['price'] is num)
+          ? (rt!['price'] as num).toDouble()
+          : null;
+      final descuentoNombreApi = rt?['discount_name'];
 
-    final descuentoMonto = descuentoMontoApi ?? descuentoMontoLocal;
-    final total = precioApi ?? precioFinalLocal;
+      final descuentoMonto = descuentoMontoApi ?? descuentoMontoLocal;
+      final total = precioApi ?? precioFinalLocal;
 
-    final p = (i < _forms.length) ? _forms[i] : null;
-    final actualFullName = (p == null)
-        ? ''
-        : [
-            p.nombres.text.trim(),
-            p.apPat.text.trim(),
-            p.apMat.text.trim(),
-          ].where((e) => e.isNotEmpty).join(' ').trim();
+      final p = (i < _forms.length) ? _forms[i] : null;
+      final actualFullName = (p == null)
+          ? ''
+          : [
+                p.nombres.text.trim(),
+                p.apPat.text.trim(),
+                p.apMat.text.trim(),
+              ].where((e) => e.isNotEmpty).join(' ').trim();
 
-    final snapshotFullName = (i < _lastPassengersFullNames.length) ? _lastPassengersFullNames[i].trim() : '';
-    final fullName = actualFullName.isNotEmpty ? actualFullName : snapshotFullName;
-    final pasajero = fullName.isNotEmpty ? fullName : 'Pasajero ${i + 1}';
+      final snapshotFullName =
+          (i < _lastPassengersFullNames.length) ? _lastPassengersFullNames[i].trim() : '';
+      final fullName = actualFullName.isNotEmpty ? actualFullName : snapshotFullName;
+      final pasajero = fullName.isNotEmpty ? fullName : 'Pasajero ${i + 1}';
 
-    return {
-      "idTicket": idTicket,
-      "seller": seller,
-      "clase": clase,
-      "origen": origen,
-      "destino": destino,
-      "terminalOrigen": terminalOrigen,
-      "terminalDestino": terminalDestino,
-      "subida": terminalOrigen,
-      "fechaSalida": fechaSalida,           // 2025-10-17
-      "horaSalida": horaSalida,             // 10:00 am
-      "asiento": asiento,
-      "servicio": servicio,
-      "anden": "—",
-      "tarifa": '\$${base.toStringAsFixed(2)}',
-      "descuento": '\$${descuentoMonto.toStringAsFixed(2)}',
-      "descuentoNombre": '${descuentoNombreApi ?? descuentoNombreLocal ?? ''}',
-      "total": '\$${total.toStringAsFixed(2)}',
-      "metodoPago": metodoPago,
-      "pasajero": pasajero,
-      "fechaCompra": nowStr,                // 2025-10-17 03:50 pm
-    };
-  });
-}
-
+      return {
+        "idTicket": idTicket,
+        "seller": seller,
+        "clase": clase,
+        "origen": origen,
+        "destino": destino,
+        "terminalOrigen": terminalOrigen,
+        "terminalDestino": terminalDestino,
+        "subida": terminalOrigen,
+        "fechaSalida": fechaSalida, // 2025-10-17
+        "horaSalida": horaSalida, // 10:00 am
+        "asiento": asiento,
+        "servicio": servicio,
+        "anden": "—",
+        "tarifa": '\$${base.toStringAsFixed(2)}',
+        "descuento": '\$${descuentoMonto.toStringAsFixed(2)}',
+        "descuentoNombre": '${descuentoNombreApi ?? descuentoNombreLocal ?? ''}',
+        "total": '\$${total.toStringAsFixed(2)}',
+        "metodoPago": metodoPago,
+        "pasajero": pasajero,
+        "fechaCompra": nowStr, // 2025-10-17 03:50 pm
+      };
+    });
+  }
 
   Future<void> _printTicketsWithServer(
     List<Map<String, dynamic>> tickets,
@@ -726,8 +743,8 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
     final String pIdOperator = '10';
     final String pIdService = widget.idService ?? '18';
     final String pBasePrice = (_routePrice ?? 0).toStringAsFixed(2);
-    final String pDateIso = (widget.travelDate ?? DateTime.now().toUtc())
-        .toIso8601String();
+    final String pDateIso =
+        (widget.travelDate ?? DateTime.now().toUtc()).toIso8601String();
 
     final resp = await http.post(
       Uri.parse(
@@ -756,8 +773,7 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
     if (data is List) {
       return data.map<Map<String, dynamic>>((e0) {
         final e = Map<String, dynamic>.from(e0 as Map);
-        e['id'] ??=
-            e['r_id_discount'] ??
+        e['id'] ??= e['r_id_discount'] ??
             e['r_id_discount_type'] ??
             e['r_id_promotion'] ??
             e['discount_id'];
@@ -841,6 +857,16 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
         _currentFloor = _floor2.isNotEmpty ? 2 : 1;
         _loadingSeats = false;
       });
+    } on SocketException catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error =
+            'Sin conexión a internet. No se pudo cargar el layout de asientos.';
+        _loadingSeats = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sin conexión. Verifica tu red.')),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -900,6 +926,14 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
           ..addAll(occ);
         _loadingOcc = false;
       });
+    } on SocketException catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingOcc = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sin conexión. No se pudo actualizar la ocupación.'),
+        ),
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() => _loadingOcc = false);
@@ -943,25 +977,27 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
 
       final obj = jsonDecode(resp.body);
       final ok = obj is Map && obj['success'] == true;
-      final List data = ok && obj['data'] is List
-          ? (obj['data'] as List)
-          : const [];
-      final count = (obj['count'] is num)
-          ? (obj['count'] as num).toInt()
-          : data.length;
+      final List data =
+          ok && obj['data'] is List ? (obj['data'] as List) : const [];
+      final count =
+          (obj['count'] is num) ? (obj['count'] as num).toInt() : data.length;
 
       String? firstId;
       if (data.isNotEmpty) {
         final d0 = data.first;
         if (d0 is Map) {
-          firstId =
-              ['r_id_step_related', 'id_step_related', 'step_related_id', 'id']
-                  .map((k) => d0[k])
-                  .firstWhere(
-                    (v) => v != null && '$v'.trim().isNotEmpty,
-                    orElse: () => null,
-                  )
-                  ?.toString();
+          firstId = [
+            'r_id_step_related',
+            'id_step_related',
+            'step_related_id',
+            'id'
+          ]
+              .map((k) => d0[k])
+              .firstWhere(
+                (v) => v != null && '$v'.trim().isNotEmpty,
+                orElse: () => null,
+              )
+              ?.toString();
         } else {
           firstId = '$d0';
         }
@@ -1004,7 +1040,13 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
   void _toggleSeat(Map<String, dynamic> seat) {
     if (_showPayment) return;
     final id = seat['id_seat'].toString();
-    final n = (seat['number_seat'] ?? 0) as int;
+    final int n = (seat['number_seat'] as num?)?.toInt() ?? 0;
+
+    // No permitir seleccionar asientos especiales (baño, pasillo, etc.)
+    if (n <= 0) {
+      // -1 = baño, 0 = pasillo u otro marcador de layout
+      return;
+    }
 
     if (_isOccNum(n) || _isProcNum(n)) {
       ScaffoldMessenger.of(
@@ -1048,9 +1090,10 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
     for (final seat in ordered) {
       if (remaining == 0) break;
       final id = seat['id_seat']?.toString();
-      final n = (seat['number_seat'] ?? 0) as int;
+      final int n = (seat['number_seat'] as num?)?.toInt() ?? 0;
       if (id == null) continue;
       if (_selectedSeatIds.contains(id)) continue;
+      if (n <= 0) continue; // evitar baño / pasillo en autofill
       if (_isOccNum(n) || _isProcNum(n)) continue;
       _selectedSeatIds.add(id);
       remaining--;
@@ -1107,10 +1150,10 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
   }
 
   String _fullName(_PassengerControllers f) => [
-    f.nombres.text,
-    f.apPat.text,
-    f.apMat.text,
-  ].where((e) => e.trim().isNotEmpty).join(' ');
+        f.nombres.text,
+        f.apPat.text,
+        f.apMat.text,
+      ].where((e) => e.trim().isNotEmpty).join(' ');
 
   double get _totalToCharge {
     double t = 0.0;
@@ -1228,12 +1271,10 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
                         final f = (i < _forms.length)
                             ? _forms[i]
                             : _PassengerControllers();
-                        final seatId = i < seatIdsSorted.length
-                            ? seatIdsSorted[i]
-                            : null;
-                        final seatNum = seatId != null
-                            ? _seatNumberFromId(seatId)
-                            : null;
+                        final seatId =
+                            i < seatIdsSorted.length ? seatIdsSorted[i] : null;
+                        final seatNum =
+                            seatId != null ? _seatNumberFromId(seatId) : null;
 
                         final d = _selectedDiscounts[i];
                         final base = _routePrice ?? 0.0;
@@ -1319,9 +1360,8 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
 
         const lightSelectedBg = Color(0xFFF96982);
         const darkSelectedBg = Color(0xFFA8D4F3);
-        final Color selectedBorder = isDark
-            ? const Color(0xFF0B6FFF)
-            : const Color(0xFFD50000);
+        final Color selectedBorder =
+            isDark ? const Color(0xFF0B6FFF) : const Color(0xFFD50000);
         final Color selectedBg = isDark ? darkSelectedBg : lightSelectedBg;
 
         final double maxH = MediaQuery.of(ctx).size.height * 0.75;
@@ -1358,11 +1398,11 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
                             padding: const EdgeInsets.all(16),
                             gridDelegate:
                                 const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  mainAxisSpacing: 12,
-                                  crossAxisSpacing: 12,
-                                  childAspectRatio: 2.4,
-                                ),
+                              crossAxisCount: 2,
+                              mainAxisSpacing: 12,
+                              crossAxisSpacing: 12,
+                              childAspectRatio: 2.4,
+                            ),
                             itemCount: _discountsCache.length,
                             itemBuilder: (_, i) {
                               final d = _discountsCache[i];
@@ -1375,13 +1415,12 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
                               final monto = (d['monto_descuento'] is num)
                                   ? (d['monto_descuento'] as num).toDouble()
                                   : double.tryParse(
-                                          '${d['monto_descuento']}',
-                                        ) ??
-                                        0.0;
+                                          '${d['monto_descuento']}') ??
+                                      0.0;
                               final precioFin = (d['precio_final'] is num)
                                   ? (d['precio_final'] as num).toDouble()
                                   : double.tryParse('${d['precio_final']}') ??
-                                        base;
+                                      base;
 
                               final isPercent = typeValue
                                   .toString()
@@ -1636,14 +1675,13 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
       final item = <String, dynamic>{
         // ---- CUSTOMER ----
         "name": f.nombres.text.trim().isEmpty ? null : f.nombres.text.trim(),
-        "last-name": f.apPat.text.trim().isEmpty ? null : f.apPat.text.trim(),
-        "second-last-name": f.apMat.text.trim().isEmpty
-            ? null
-            : f.apMat.text.trim(),
+        "last-name":
+            f.apPat.text.trim().isEmpty ? null : f.apPat.text.trim(),
+        "second-last-name":
+            f.apMat.text.trim().isEmpty ? null : f.apMat.text.trim(),
         "email": null,
-        "phone-number": f.phone.text.trim().isEmpty
-            ? null
-            : f.phone.text.trim(),
+        "phone-number":
+            f.phone.text.trim().isEmpty ? null : f.phone.text.trim(),
         "gender": null,
         "user_relation": null,
         "type-passenger": f.tipo ?? tr('ptype_adult'),
@@ -1895,29 +1933,26 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
               .whereType<dynamic>()
               .where((e) => e is Map)
               .map<Map<String, dynamic>>((e0) {
-                final e = Map<String, dynamic>.from(e0 as Map);
-                return {
-                  'id_ticket': '${e['id_ticket'] ?? ''}',
-                  'seat':
-                      e['seat'] ??
-                      e['bus_number_seat_origin'] ??
-                      e['bus_number_seat'],
-                  'price':
-                      (e['price_service_origin'] ?? e['price_service'] ?? 0)
-                          is num
-                      ? ((e['price_service_origin'] ?? e['price_service'])
-                                as num)
-                            .toDouble()
-                      : 0.0,
-                  'discount':
-                      (e['discount_origin'] ?? e['discount'] ?? 0) is num
+            final e = Map<String, dynamic>.from(e0 as Map);
+            return {
+              'id_ticket': '${e['id_ticket'] ?? ''}',
+              'seat':
+                  e['seat'] ??
+                  e['bus_number_seat_origin'] ??
+                  e['bus_number_seat'],
+              'price': (e['price_service_origin'] ?? e['price_service'] ?? 0)
+                      is num
+                  ? ((e['price_service_origin'] ?? e['price_service']) as num)
+                      .toDouble()
+                  : 0.0,
+              'discount':
+                  (e['discount_origin'] ?? e['discount'] ?? 0) is num
                       ? ((e['discount_origin'] ?? e['discount']) as num)
-                            .toDouble()
+                          .toDouble()
                       : 0.0,
-                  'discount_name': e['discount_name'],
-                };
-              })
-              .toList();
+              'discount_name': e['discount_name'],
+            };
+          }).toList();
         } else {
           final payload = obj['payload_sent'];
           final customers = (payload is Map) ? payload['customers'] : null;
@@ -1926,21 +1961,20 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
                 .whereType<dynamic>()
                 .where((c) => c is Map && (c as Map)['origin'] is Map)
                 .map<Map<String, dynamic>>((c0) {
-                  final c = Map<String, dynamic>.from(c0 as Map);
-                  final origin = Map<String, dynamic>.from(c['origin'] as Map);
-                  return {
-                    'id_ticket': '',
-                    'seat': origin['seat'],
-                    'price': (origin['price_service'] ?? 0) is num
-                        ? (origin['price_service'] as num).toDouble()
-                        : 0.0,
-                    'discount': (origin['discount_value'] ?? 0) is num
-                        ? (origin['discount_value'] as num).toDouble()
-                        : 0.0,
-                    'discount_name': origin['discount_name'],
-                  };
-                })
-                .toList();
+              final c = Map<String, dynamic>.from(c0 as Map);
+              final origin = Map<String, dynamic>.from(c['origin'] as Map);
+              return {
+                'id_ticket': '',
+                'seat': origin['seat'],
+                'price': (origin['price_service'] ?? 0) is num
+                    ? (origin['price_service'] as num).toDouble()
+                    : 0.0,
+                'discount': (origin['discount_value'] ?? 0) is num
+                    ? (origin['discount_value'] as num).toDouble()
+                    : 0.0,
+                'discount_name': origin['discount_name'],
+              };
+            }).toList();
           } else {
             _lastSoldTickets = [];
           }
@@ -1957,13 +1991,11 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
       }
 
       final String? folio =
-          (_lastTicketOriginIds.isNotEmpty
-              ? _lastTicketOriginIds.first
-              : null) ??
-          (obj['rpc_result'] is Map
-              ? (obj['rpc_result']['id_ticket']?.toString())
-              : null) ??
-          obj['id_ticket']?.toString();
+          (_lastTicketOriginIds.isNotEmpty ? _lastTicketOriginIds.first : null) ??
+              (obj['rpc_result'] is Map
+                  ? (obj['rpc_result']['id_ticket']?.toString())
+                  : null) ??
+              obj['id_ticket']?.toString();
 
       _lastPassengersFullNames = List.generate(widget.passengers, (i) {
         if (i < _forms.length) {
@@ -1987,9 +2019,8 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
         terminalOrigen: ends.terminalOrigen,
         terminalDestino: ends.terminalDestino,
         realTickets: _lastSoldTickets.isEmpty ? null : _lastSoldTickets,
-        ticketIdsOrigin: _lastTicketOriginIds.isEmpty
-            ? null
-            : _lastTicketOriginIds,
+        ticketIdsOrigin:
+            _lastTicketOriginIds.isEmpty ? null : _lastTicketOriginIds,
         fallbackFolio: folio ?? (_orderTemporalId ?? _genTemporalId()),
       );
 
@@ -2019,6 +2050,13 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
 
       // Si quieres imprimir automáticamente la 1a vez, descomenta:
       // await _printAndMaybeFinalize();
+    } on SocketException catch (_) {
+      if (!mounted) return;
+      await _showErrorDialog(
+        'Sin conexión a internet. La orden no se envió al servidor.',
+      );
+      _setProcessFromSelection(false);
+      await _fetchOccupiedSeats();
     } catch (e) {
       if (!mounted) return;
       await _showErrorDialog('Error enviando orden: $e');
@@ -2147,12 +2185,10 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
     final Color reBg = isDark
         ? const Color(0xFF0B6FFF).withOpacity(0.12)
         : const Color(0xFFFFE6EA);
-    final Color reFg = isDark
-        ? const Color(0xFFA8D4F3)
-        : const Color(0xFFD50000);
-    final Color reBorder = isDark
-        ? const Color(0xFF0B6FFF)
-        : const Color(0xFFD50000);
+    final Color reFg =
+        isDark ? const Color(0xFFA8D4F3) : const Color(0xFFD50000);
+    final Color reBorder =
+        isDark ? const Color(0xFF0B6FFF) : const Color(0xFFD50000);
 
     return Column(
       children: [
@@ -2279,110 +2315,114 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
         : (_changeValue > 0 ? Colors.blue : Colors.green);
 
     Widget amountColumn() => Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Monto a cobrar \$${totalFmt}',
-          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 6),
-      ],
-    );
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Monto a cobrar \$${totalFmt}',
+              style:
+                  const TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 6),
+          ],
+        );
 
     Widget cashSection() => Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          tr('cash_payment_title'),
-          style: TextStyle(fontWeight: FontWeight.w900, color: cs.primary),
-        ),
-        const SizedBox(height: 12),
-        amountColumn(),
-        const SizedBox(height: 16),
-        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: _moneyFieldBig(
-                _cashCtrl,
-                tr('cash_received'),
-                borderColor: _borderFromChangeForInput(),
-              ),
+            Text(
+              tr('cash_payment_title'),
+              style:
+                  TextStyle(fontWeight: FontWeight.w900, color: cs.primary),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: _moneyFieldBig(
-                _changeCtrl,
-                tr('change_to_return'),
-                enabled: false,
-                borderColor: _borderFromChangeForInput(),
-                textColor: _changeColor(),
-              ),
+            const SizedBox(height: 12),
+            amountColumn(),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _moneyFieldBig(
+                    _cashCtrl,
+                    tr('cash_received'),
+                    borderColor: _borderFromChangeForInput(),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: _moneyFieldBig(
+                    _changeCtrl,
+                    tr('change_to_return'),
+                    enabled: false,
+                    borderColor: _borderFromChangeForInput(),
+                    textColor: _changeColor(),
+                  ),
+                ),
+              ],
             ),
+            _paymentButtons(),
           ],
-        ),
-        _paymentButtons(),
-      ],
-    );
+        );
 
     Widget cardSection() => Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          tr('card_payment_title'),
-          style: TextStyle(fontWeight: FontWeight.w900, color: cs.primary),
-        ),
-        const SizedBox(height: 12),
-        amountColumn(),
-        const SizedBox(height: 16),
-        _moneyFieldBig(
-          _cardCtrl,
-          tr('card_received'),
-          borderColor: _borderFromChangeForInput(),
-        ),
-        _paymentButtons(),
-      ],
-    );
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              tr('card_payment_title'),
+              style:
+                  TextStyle(fontWeight: FontWeight.w900, color: cs.primary),
+            ),
+            const SizedBox(height: 12),
+            amountColumn(),
+            const SizedBox(height: 16),
+            _moneyFieldBig(
+              _cardCtrl,
+              tr('card_received'),
+              borderColor: _borderFromChangeForInput(),
+            ),
+            _paymentButtons(),
+          ],
+        );
 
     Widget mixedSection() => Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          tr('mixed_payment_title'),
-          style: TextStyle(fontWeight: FontWeight.w900, color: cs.primary),
-        ),
-        const SizedBox(height: 12),
-        amountColumn(),
-        const SizedBox(height: 16),
-        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: _moneyFieldBig(
-                _cashCtrl,
-                tr('cash_received'),
-                borderColor: _borderFromChangeForInput(),
-              ),
+            Text(
+              tr('mixed_payment_title'),
+              style:
+                  TextStyle(fontWeight: FontWeight.w900, color: cs.primary),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: _moneyFieldBig(
-                _changeCtrl,
-                tr('change_to_return'),
-                enabled: false,
-                borderColor: _borderFromChangeForInput(),
-                textColor: _changeColor(),
-              ),
+            const SizedBox(height: 12),
+            amountColumn(),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _moneyFieldBig(
+                    _cashCtrl,
+                    tr('cash_received'),
+                    borderColor: _borderFromChangeForInput(),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: _moneyFieldBig(
+                    _changeCtrl,
+                    tr('change_to_return'),
+                    enabled: false,
+                    borderColor: _borderFromChangeForInput(),
+                    textColor: _changeColor(),
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 16),
+            _moneyFieldBig(
+              _cardCtrl,
+              tr('card_received'),
+              borderColor: _borderFromChangeForInput(),
+            ),
+            _paymentButtons(),
           ],
-        ),
-        const SizedBox(height: 16),
-        _moneyFieldBig(
-          _cardCtrl,
-          tr('card_received'),
-          borderColor: _borderFromChangeForInput(),
-        ),
-        _paymentButtons(),
-      ],
-    );
+        );
 
     Widget section() {
       switch (_paymentMethod) {
@@ -2426,7 +2466,8 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
             const SizedBox(height: 14),
             Text(
               tr('payment_method'),
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              style:
+                  const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 10),
             _paymentMethodBar(),
@@ -2494,13 +2535,34 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
     );
   }
 
+  /// Celda del plano. Maneja:
+  ///   - null  → espacio vacío
+  ///   - n == 0 → pasillo
+  ///   - n == -1 → baño
+  ///   - n > 0  → asiento normal
   Widget _slot(Map<String, dynamic>? seat) {
-    if (seat == null) return const SizedBox(width: 48, height: 60);
-    final id = seat['id_seat'].toString();
-    final n = (seat['number_seat'] ?? 0) as int;
-    final occ = _isOccNum(n);
-    final proc = _isProcNum(n);
-    final sel = _isSelId(id);
+    // Espacio vacío (placeholder para mantener la cuadrícula)
+    if (seat == null) {
+      return const SizedBox(width: 48, height: 60);
+    }
+
+    final String id = seat['id_seat'].toString();
+    final int n = (seat['number_seat'] as num?)?.toInt() ?? 0;
+
+    // Pasillo u otro hueco del layout
+    if (n == 0) {
+      return const SizedBox(width: 48, height: 60);
+    }
+
+    // Asiento especial: baño
+    if (n == -1) {
+      return _bathroomSlot();
+    }
+
+    // Asiento normal
+    final bool occ = _isOccNum(n);
+    final bool proc = _isProcNum(n);
+    final bool sel = _isSelId(id);
 
     return InkWell(
       onTap: () => _toggleSeat(seat),
@@ -2509,22 +2571,53 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
     );
   }
 
+  Widget _bathroomSlot() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      width: 48,
+      height: 60,
+      margin: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.blueGrey.shade700 : Colors.blueGrey.shade100,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isDark ? Colors.blueGrey.shade300 : Colors.blueGrey.shade600,
+          width: 1.4,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            blurRadius: 3,
+            color: Colors.black12,
+            offset: Offset(0, 1),
+          ),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.wc_rounded, // o Icons.restroom
+        size: 26,
+        color: Colors.black87,
+      ),
+    );
+  }
+
   Widget _legend() {
     Widget line(Color c, String t) => Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 20,
-          height: 20,
-          decoration: BoxDecoration(
-            color: c,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(t, style: const TextStyle(fontSize: 14)),
-      ],
-    );
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: c,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(t, style: const TextStyle(fontSize: 14)),
+          ],
+        );
     return Wrap(
       spacing: 16,
       runSpacing: 8,
@@ -2536,8 +2629,6 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
       ],
     );
   }
-
-  // Coloca esto en tu clase _SeatSelectionInlineState
 
   String _formatBannerDate(DateTime d) {
     const dias = [
@@ -3172,7 +3263,7 @@ List<Map<String, dynamic>> _buildTicketsForPrint({
                     SegmentedButton<int>(
                       segments: [
                         ButtonSegment(value: 1, label: Text(tr('floor_1'))),
-                        ButtonSegment(value: 2, label: Text(tr('floor_2'))),
+                      ButtonSegment(value: 2, label: Text(tr('floor_2'))),
                       ],
                       selected: {_currentFloor},
                       onSelectionChanged: (s) =>
